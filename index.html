@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="vi">
+<head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HuudatpShop</title>
+<style>
+*{box-sizing:border-box;font-family:Arial,sans-serif}body{margin:0;background:#f5f6fa;color:#222}header{background:#222;color:white;padding:16px 6%;display:flex;justify-content:space-between;align-items:center;gap:12px}.logo{font-size:23px;font-weight:bold;color:#ffb703}button{border:0;border-radius:8px;padding:12px;cursor:pointer;font-weight:bold}.cart-btn{background:#ffb703}.hero{text-align:center;padding:55px 15px;background:linear-gradient(120deg,#2193b0,#6dd5ed);color:white}.hero h1{font-size:clamp(26px,5vw,38px)}main{width:92%;max-width:1100px;margin:30px auto}.search,input,textarea,select{width:100%;padding:13px;border:1px solid #ddd;border-radius:8px;font-size:16px}.search{margin-bottom:22px}.products{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:20px;margin-top:18px}.product,.panel{background:white;border-radius:12px;overflow:hidden;box-shadow:0 3px 12px #0001}.product img{width:100%;height:210px;object-fit:cover}.info,.panel{padding:18px}.price,.total{color:#e63946;font-weight:bold;font-size:20px;margin:12px 0}.add{width:100%;background:#222;color:white}.cart-item{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #eee}.qty button{padding:6px 10px;background:#eee}.total{text-align:right}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.full{grid-column:1/-1}label{display:block;font-weight:bold;margin:12px 0 6px}.order{width:100%;background:#168a45;color:white;margin-top:15px;font-size:16px}#bank{display:none;background:#eef6ff;padding:12px;margin-top:10px;border-radius:8px}#msg{display:none;padding:12px;margin-top:12px;border-radius:8px;white-space:pre-line}.ok{display:block!important;background:#e8f8ed;color:#145c2d}.err{display:block!important;background:#fff0f0;color:#9b2020}.note{font-size:13px;color:#666;line-height:1.5}footer{text-align:center;background:#222;color:white;padding:24px;margin-top:40px}@media(max-width:600px){.grid{grid-template-columns:1fr}.full{grid-column:auto}}
+</style>
+</head>
+
+<body>
+<header>
+<div class="logo">🛍️ HuudatpShop</div>
+<button class="cart-btn" onclick="goCart()">🛒 Giỏ hàng (<span id="count">0</span>)</button>
+</header>
+
+<section class="hero">
+<h1>Chào mừng đến HuudatpShop</h1>
+<p>Mua sắm dễ dàng · Giá cả hợp lý · Giao hàng tận nơi</p>
+</section>
+
+<main>
+<input id="search" class="search" placeholder="🔍 Tìm kiếm sản phẩm..." oninput="renderProducts()">
+<h2>✨ Sản phẩm nổi bật</h2>
+<div id="products" class="products"></div>
+<section id="cart" class="panel" style="margin-top:28px">
+<h2>🛒 Giỏ hàng của bạn</h2>
+<div id="items">Chưa có sản phẩm nào.</div>
+<div class="total">Tổng: <span id="total">0đ</span>
+</div><h3>Thông tin đặt hàng</h3>
+<div class="grid"><div>
+<label>Họ và tên *</label>
+<input id="customer" autocomplete="name" placeholder="Nguyễn Văn A"></div>
+<div><label>Số điện thoại *</label>
+<input id="phone" inputmode="tel" placeholder="xxxxxxxxxx"></div>
+<div class="full"><label>Địa chỉ nhận hàng *</label><textarea id="address" rows="2" placeholder="Số nhà, đường, phường/xã, tỉnh/thành"></textarea></div><div class="full"><label>Phương thức thanh toán</label><select id="payment" onchange="toggleBank()"><option value="cod">Thanh toán khi nhận hàng (COD)</option><option value="bank_transfer">Chuyển khoản ngân hàng</option></select></div></div>
+<div id="bank"><b>Thông tin chuyển khoản</b><br>Ngân hàng: <span id="bankName"></span><br>Chủ tài khoản: <span id="bankOwner"></span><br>Số tài khoản: <span id="bankAccount"></span><p class="note">Đơn chuyển khoản sẽ chờ shop xác nhận. Chưa bật chuyển khoản thật cho đến khi bạn điền thông tin ngân hàng ở cấu hình.</p></div>
+<button id="submit" class="order" onclick="checkout()">ĐẶT HÀNG NGAY</button><div id="msg" role="status"></div><p class="note">Không nhập thông tin thẻ hoặc mật khẩu ngân hàng vào website.</p></section></main>
+<footer>© 2026 HuudatpShop</footer>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script>
+const SUPABASE_URL="https://jsieikjbguwizvqljdhv.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY="sb_publishable_5LLFtk0DWfEPCdJlUnv6Yg_dfYLkPqk";
+const BANK={name:"CHƯA CẤU HÌNH",owner:"CHƯA CẤU HÌNH",account:"CHƯA CẤU HÌNH"};
+const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
+const products=[{id:1,name:"Áo thun nam",price:150000,image:"Anh.png"},{id:2,name:"Giày thể thao",price:450000,image:"https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=700"},{id:3,name:"Đồng hồ thời trang",price:650000,image:"https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=700"},{id:4,name:"Ba lô cao cấp",price:350000,image:"https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=700"}];let cart=[];
+const money=n=>new Intl.NumberFormat("vi-VN").format(n)+"đ";
+function message(t,c){let e=document.getElementById("msg");e.textContent=t;e.className=c;e.style.display="block"}
+function renderProducts(){let k=document.getElementById("search").value.toLocaleLowerCase("vi");document.getElementById("products").innerHTML=products.filter(p=>p.name.toLocaleLowerCase("vi").includes(k)).map(p=>`<article class="product"><img src="${p.image}" alt="${p.name}" loading="lazy"><div class="info"><h3>${p.name}</h3><div class="price">${money(p.price)}</div><button class="add" onclick="add(${p.id})">+ Thêm vào giỏ</button></div></article>`).join("")||"Không tìm thấy sản phẩm."}
+function add(id){let p=products.find(x=>x.id===id),i=cart.find(x=>x.id===id);if(i)i.quantity++;else cart.push({...p,quantity:1});renderCart()}
+function change(id,n){let i=cart.find(x=>x.id===id);if(!i)return;i.quantity+=n;if(i.quantity<=0)cart=cart.filter(x=>x.id!==id);renderCart()}
+function renderCart(){document.getElementById("count").textContent=cart.reduce((s,p)=>s+p.quantity,0);document.getElementById("items").innerHTML=cart.length?cart.map(p=>`<div class="cart-item"><div><b>${p.name}</b><br>${money(p.price)} × ${p.quantity}</div><div class="qty"><button onclick="change(${p.id},-1)">−</button> <button onclick="change(${p.id},1)">+</button></div></div>`).join(""):"Chưa có sản phẩm nào.";document.getElementById("total").textContent=money(cart.reduce((s,p)=>s+p.price*p.quantity,0))}
+function goCart(){document.getElementById("cart").scrollIntoView({behavior:"smooth"})}
+function toggleBank(){document.getElementById("bank").style.display=document.getElementById("payment").value==="bank_transfer"?"block":"none"}
+document.getElementById("bankName").textContent=BANK.name;document.getElementById("bankOwner").textContent=BANK.owner;document.getElementById("bankAccount").textContent=BANK.account;
+async function checkout(){
+  if(!cart.length) return message("Giỏ hàng đang trống.","err");
+  let customer=document.getElementById("customer").value.trim(),
+      phone=document.getElementById("phone").value.trim(),
+      address=document.getElementById("address").value.trim(),
+      payment=document.getElementById("payment").value;
+  if(!customer||!phone||!address) return message("Vui lòng nhập đủ họ tên, số điện thoại và địa chỉ.","err");
+  if(!/^[0-9+().\s-]{9,16}$/.test(phone)) return message("Số điện thoại chưa đúng định dạng.","err");
+  if(payment==="bank_transfer") return message("Chưa thể nhận chuyển khoản: chủ shop cần cấu hình và xác minh thông tin ngân hàng trong mã nguồn trước khi bật phương thức này.","err");
+
+  let total=cart.reduce((s,p)=>s+p.price*p.quantity,0),
+      items=cart.map(p=>({product_id:p.id,name:p.name,unit_price:p.price,quantity:p.quantity,line_total:p.price*p.quantity})),
+      btn=document.getElementById("submit");
+  btn.disabled=true;
+  btn.textContent="ĐANG GỬI ĐƠN...";
+
+  try{
+    const {error}=await supabaseClient.from("orders").insert({
+      customer_name:customer,
+      phone,
+      address,
+      payment_method:payment,
+      payment_status:"unpaid",
+      order_status:"new",
+      items,
+      total_amount:total
+    });
+
+    if(error) throw error;
+
+    message("ĐẶT HÀNG THÀNH CÔNG!\nTổng tiền: "+money(total)+"\nShop sẽ liên hệ xác nhận.","ok");
+    cart=[];
+    renderCart();
+    ["customer","phone","address"].forEach(id=>document.getElementById(id).value="");
+  }catch(e){
+    console.error(e);
+    message("Gửi đơn chưa thành công. Kiểm tra đã chạy supabase_setup.sql và cấu hình RLS chưa.\n"+(e.message||"Lỗi kết nối"),"err");
+  }finally{
+    btn.disabled=false;
+    btn.textContent="ĐẶT HÀNG NGAY";
+  }
+}
+renderProducts();renderCart();
+</script></body></html>

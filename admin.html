@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MyShop Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f5f9;color:#172033;font:16px Arial,sans-serif}
+header{background:#172033;color:white;padding:18px 5%;display:flex;justify-content:space-between;align-items:center}
+main{max-width:1100px;margin:28px auto;padding:0 16px}.card{background:white;border-radius:14px;padding:20px;margin-bottom:18px;box-shadow:0 4px 18px #17203312}
+h1{font-size:24px;margin:0}h2{margin-top:0}.muted{color:#667085}
+input,select,button{font:inherit;padding:12px;border:1px solid #d0d5dd;border-radius:8px}
+input{width:100%;margin:7px 0 12px}button{cursor:pointer;background:#175cd3;color:white;border:0;font-weight:700}
+button.secondary{background:#475467}button.danger{background:#b42318}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.hidden{display:none}
+.tablewrap{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:760px}th,td{text-align:left;padding:12px;border-bottom:1px solid #eaecf0;vertical-align:top}
+small{color:#667085}.status{display:inline-block;background:#eef4ff;padding:5px 8px;border-radius:20px;font-size:12px}
+.actions{display:flex;gap:7px;flex-wrap:wrap}.actions select{max-width:160px}
+#message{margin-top:12px;color:#b42318;white-space:pre-wrap}
+@media(max-width:600px){.row{grid-template-columns:1fr}header{padding:16px}}
+</style>
+</head>
+<body>
+<header><h1>🛍️ MyShop Admin</h1><button id="logout" class="secondary hidden">Đăng xuất</button></header>
+<main>
+<section id="loginCard" class="card">
+<h2>Đăng nhập quản trị</h2>
+<p class="muted">Dùng email và mật khẩu Admin đã tạo trong Supabase Authentication.</p>
+<label>Email</label><input id="email" type="email" autocomplete="username" placeholder="admin@example.com">
+<label>Mật khẩu</label><input id="password" type="password" autocomplete="current-password" placeholder="Mật khẩu">
+<button id="login">Đăng nhập</button><div id="message"></div>
+</section>
+<section id="dashboard" class="hidden">
+<div class="card">
+<h2>Quản lý đơn hàng</h2>
+<p class="muted">Đơn mới nhất hiển thị trước. Trạng thái chỉ cập nhật khi bạn chọn và lưu.</p>
+<button id="refresh">Làm mới đơn hàng</button>
+<div id="loadMessage" class="muted"></div>
+</div>
+<div class="card tablewrap">
+<table><thead><tr><th>Mã đơn</th><th>Khách hàng</th><th>Sản phẩm</th><th>Tổng tiền</th><th>Thanh toán</th><th>Trạng thái đơn</th><th>Lưu</th></tr></thead>
+<tbody id="orders"><tr><td colspan="7">Chưa tải đơn hàng.</td></tr></tbody></table>
+</div>
+</section>
+</main>
+<script>
+const SUPABASE_URL = "https://jsieikjbguwizvqljdhv.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_5LLFtk0DWfEPCdJlUnv6Yg_dfYLkPqk";
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+const $ = id => document.getElementById(id);
+const money = n => Number(n||0).toLocaleString("vi-VN") + "đ";
+function showError(msg){$("message").textContent=msg}
+async function checkSession(){
+ const {data:{session}}=await db.auth.getSession();
+ if(session){$("loginCard").classList.add("hidden");$("dashboard").classList.remove("hidden");$("logout").classList.remove("hidden");await loadOrders();}
+}
+$("login").onclick=async()=>{
+ showError("");
+ const {error}=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});
+ if(error){showError("Đăng nhập thất bại: "+error.message);return;}
+ $("loginCard").classList.add("hidden");$("dashboard").classList.remove("hidden");$("logout").classList.remove("hidden");await loadOrders();
+};
+$("logout").onclick=async()=>{await db.auth.signOut();location.reload()};
+$("refresh").onclick=loadOrders;
+async function loadOrders(){
+ $("loadMessage").textContent="Đang tải...";
+ const {data,error}=await db.from("orders").select("*").order("created_at",{ascending:false});
+ if(error){$("loadMessage").textContent="Không tải được đơn: "+error.message;return;}
+ $("loadMessage").textContent=`Có ${data.length} đơn hàng.`;
+ if(!data.length){$("orders").innerHTML='<tr><td colspan="7">Chưa có đơn hàng nào.</td></tr>';return;}
+ $("orders").innerHTML=data.map(o=>{
+  const items=Array.isArray(o.items)?o.items:[];
+  const lines=items.map(i=>`${escapeHtml(i.name||"Sản phẩm")} × ${Number(i.quantity||1)}`).join("<br>")||"—";
+  return `<tr>
+   <td>#${o.id}<br><small>${o.created_at?new Date(o.created_at).toLocaleString("vi-VN"):""}</small></td>
+   <td><b>${escapeHtml(o.customer_name)}</b><br>${escapeHtml(o.phone)}<br>${escapeHtml(o.address)}</td>
+   <td>${lines}</td><td><b>${money(o.total_amount)}</b></td>
+   <td>${o.payment_method==="cod"?"COD":"Chuyển khoản"}<br><select id="pay-${o.id}"><option value="pending" ${o.payment_status==="pending"?"selected":""}>Chưa thanh toán</option><option value="paid" ${o.payment_status==="paid"?"selected":""}>Đã thanh toán</option><option value="failed" ${o.payment_status==="failed"?"selected":""}>Thất bại</option></select></td>
+   <td><select id="status-${o.id}"><option value="new" ${o.order_status==="new"?"selected":""}>Mới</option><option value="confirmed" ${o.order_status==="confirmed"?"selected":""}>Đã xác nhận</option><option value="shipping" ${o.order_status==="shipping"?"selected":""}>Đang giao</option><option value="completed" ${o.order_status==="completed"?"selected":""}>Hoàn tất</option><option value="cancelled" ${o.order_status==="cancelled"?"selected":""}>Đã hủy</option></select></td>
+   <td><button onclick="saveOrder(${o.id})">Lưu</button></td></tr>`;
+ }).join("");
+}
+function escapeHtml(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+async function saveOrder(id){
+ const order_status=$("status-"+id).value;
+ const payment_status=$("pay-"+id).value;
+ const {error}=await db.from("orders").update({order_status,payment_status}).eq("id",id);
+ if(error){alert("Không lưu được: "+error.message);return;}
+ alert("Đã cập nhật đơn #"+id);await loadOrders();
+}
+checkSession();
+</script>
+</body>
+</html>
